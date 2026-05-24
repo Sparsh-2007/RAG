@@ -11,3 +11,4 @@ wheels/
 .env
 venv/
 data/
+my_chroma_db/
