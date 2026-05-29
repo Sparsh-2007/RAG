@@ -213,7 +213,13 @@ langchain-groq
 python-dotenv
 ```
 
-Install with:
+Install with pip:
+
 ```bash
 pip install flask werkzeug chromadb langchain-groq python-dotenv
+```
+Install with uv :
+
+```bash
+uv add flask werkzeug chromadb langchain-groq python-dotenv
 ```
