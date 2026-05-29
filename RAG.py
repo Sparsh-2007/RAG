@@ -1,5 +1,6 @@
 import argparse
 import getpass
+import hashlib
 import os
 from urllib.parse import unquote, urlparse
 
@@ -12,29 +13,39 @@ dotenv.load_dotenv()
 
 _llm: ChatGroq | None = None
 _collection = None
+
 DEFAULT_CHUNK_SIZE = 800
 DEFAULT_CHUNK_OVERLAP = 100
 UPSERT_BATCH_SIZE = 64
 STREAM_READ_SIZE = 4096
+TOP_K_RESULTS = 5         
+MAX_TOKENS = 1024         
+
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434")   
+OLLAMA_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "mxbai-embed-large")
 
 
-def _ensure_groq_key(prompt: bool) -> None:
+def _ensure_groq_key() -> None:
+    """Resolve GROQ_API_KEY from env; prompt interactively only when running as a script."""
     if "GROQ_API_KEY" not in os.environ:
-        if prompt:
-            os.environ["GROQ_API_KEY"] = getpass.getpass("Enter your Groq API key: ")
-        else:
-            raise RuntimeError("GROQ_API_KEY is not set. Add it to your environment or .env file.")
+        # FIX 6: detect whether we are inside a web/server context
+        if os.environ.get("FLASK_ENV") or os.environ.get("SERVER_MODE"):
+            raise RuntimeError(
+                "GROQ_API_KEY is not set. Add it to your .env file or environment before starting the server."
+            )
+        # Interactive cli path
+        os.environ["GROQ_API_KEY"] = getpass.getpass("Enter your Groq API key: ")
 
 
 def get_llm() -> ChatGroq:
     global _llm
     if _llm is None:
-        _ensure_groq_key(prompt=False)
+        _ensure_groq_key()
         _llm = ChatGroq(
             model="llama-3.1-8b-instant",
             temperature=0.4,
-            max_tokens=None,
-            timeout=None,
+            max_tokens=MAX_TOKENS,   # FIX 4: was None
+            timeout=30,
             max_retries=2,
         )
     return _llm
@@ -43,10 +54,11 @@ def get_llm() -> ChatGroq:
 def get_collection():
     global _collection
     if _collection is None:
+        _check_ollama()
         client = chromadb.PersistentClient(path="./my_chroma_db")
         ollama_ef = embedding_functions.OllamaEmbeddingFunction(
-            url="http://localhost:11434",
-            model_name="mxbai-embed-large",
+            url=OLLAMA_URL,
+            model_name=OLLAMA_MODEL,
         )
         _collection = client.get_or_create_collection(
             name="rag_docs",
@@ -54,17 +66,36 @@ def get_collection():
         )
     return _collection
 
+
+def _check_ollama() -> None:
+    """Raise a clear error if the Ollama server is not reachable."""
+    import urllib.request
+    import urllib.error
+    try:
+        urllib.request.urlopen(OLLAMA_URL, timeout=3)
+    except urllib.error.URLError as exc:
+        raise RuntimeError(
+            f"Cannot reach Ollama at {OLLAMA_URL!r}. "
+            "Make sure Ollama is running, or set OLLAMA_URL in your environment."
+        ) from exc
+
+
 # ---------- Document ingestion helpers ----------
+
 def normalize_path(path_or_url: str) -> str:
     if not path_or_url.startswith("file://"):
         return path_or_url
-
     parsed = urlparse(path_or_url)
     path = unquote(parsed.path)
     if os.name == "nt" and path[:1] == "/" and path[2:3] == ":":
         return path[1:]
     return path
 
+
+def _chunk_id(prefix: str, content: str) -> str:
+    """FIX 5: Deterministic, content-hash-based chunk ID to avoid duplicates on re-ingest."""
+    digest = hashlib.sha1(content.encode("utf-8")).hexdigest()[:12]
+    return f"{prefix}_{digest}"
 
 
 def _iter_chunks_from_stream(
@@ -83,18 +114,23 @@ def _iter_chunks_from_stream(
 
     while True:
         data = handle.read(read_size)
+
         if not data:
-            # EOF: if we never saw content, nothing to yield
+            # EOF
             if not started:
                 return
-            # flush remaining buffer (strip trailing whitespace)
             buffer = buffer.rstrip()
-            while buffer:
+            # FIX 2: guard against infinite loop when remaining buffer < chunk_size
+            while len(buffer) > 0:
                 yield buffer[:chunk_size]
-                buffer = buffer[chunk_size - overlap:]
+                next_buffer = buffer[chunk_size - overlap:]
+                # If overlap == 0 and buffer was shorter than chunk_size, next_buffer
+                # would be identical to buffer — break to avoid infinite loop.
+                if next_buffer == buffer or len(next_buffer) == 0:
+                    break
+                buffer = next_buffer
             return
 
-        # skip leading whitespace until first non-empty content
         if not started:
             if not data.strip():
                 continue
@@ -108,7 +144,7 @@ def _iter_chunks_from_stream(
 
 
 def run_rag_pipeline(user_question: str) -> str:
-    """Retrieves relevant context from ChromaDB and passes it to Groq LLM for generation."""
+    """Retrieve relevant context from ChromaDB and generate a grounded answer via Groq."""
     question = user_question.strip()
     if not question:
         raise ValueError("Query cannot be empty.")
@@ -118,67 +154,57 @@ def run_rag_pipeline(user_question: str) -> str:
 
     doc_count = collection.count()
     if doc_count == 0:
-        return "No documents available. Ingest a document before querying."
-
-    # Step A: Retrieve context from DB
-    # We fetch the top 2 matches to give the LLM sufficient context
+        return "No documents available. Please upload a document before querying."
+    n = min(TOP_K_RESULTS, doc_count)
     search_results = collection.query(
         query_texts=[question],
-        n_results=min(2, doc_count)
+        n_results=n,
     )
 
-    # Flatten the retrieved documents array into a single context string
     retrieved_chunks = (search_results.get("documents") or [[]])[0]
     if not retrieved_chunks:
         return "No relevant context found in the vector store."
-    context = "\n".join([f"- {doc}" for doc in retrieved_chunks])
 
-    # Step B: Construct Prompt Structure
-    # Use system instructions to strictly constrain the LLM to the retrieved data
+    context = "\n\n".join([f"[Chunk {i+1}]\n{doc}" for i, doc in enumerate(retrieved_chunks)])
     messages = [
         (
             "system",
-            "You are a precise technical assistant. Answer the user's question using ONLY the provided "
-            "Context below. If the answer cannot be determined from the context, state that you do not know.\n\n"
-            f"--- CONTEXT ---\n{context}"
+            "You are a helpful, conversational technical assistant. Answer the user's question using ONLY the "
+            "context provided below. You may expand on it in plain, human-friendly language. If the answer cannot be determined from the context, say so.\n\n"
+            f"--- CONTEXT ---\n{context}\n--- END CONTEXT ---",
         ),
         ("human", question),
     ]
 
-    # Step C: Generate Grounded Output
+    # Step C: Generate
     ai_response = llm.invoke(messages)
     return ai_response.content
 
 
-def parse_args() -> argparse.Namespace:
-
-    parser = argparse.ArgumentParser(description="RAG pipeline query runner.")
-    parser.add_argument("--query", required=True, help="Question to run through the RAG pipeline")
-    return parser.parse_args()
-
 def ingest_document(file_path: str) -> int:
+    """Chunk and upsert a document into ChromaDB. Returns number of chunks ingested."""
     collection = get_collection()
     normalized_path = normalize_path(file_path)
     if not os.path.isfile(normalized_path):
         raise FileNotFoundError(f"Document not found: {normalized_path}")
 
     _, ext = os.path.splitext(normalized_path)
-    ext = ext.lower()
-    if ext not in {".txt", ".md", ".markdown"}:
+    if ext.lower() not in {".txt", ".md", ".markdown"}:
         raise ValueError("Only .txt, .md, and .markdown files are supported for ingestion.")
 
     prefix = os.path.splitext(os.path.basename(normalized_path))[0]
     base_metadata = {"source": os.path.basename(normalized_path)}
-    ids = []
-    documents = []
-    metadatas = []
+
+    ids, documents, metadatas = [], [], []
     chunk_index = 0
 
     with open(normalized_path, "r", encoding="utf-8") as handle:
         for chunk in _iter_chunks_from_stream(handle):
-            if not chunk:
+            if not chunk.strip():
                 continue
-            ids.append(f"{prefix}_{chunk_index:04d}")
+            # FIX 5: content-hash ID prevents duplicate chunks on re-ingest
+            chunk_id = _chunk_id(prefix, chunk)
+            ids.append(chunk_id)
             documents.append(chunk)
             metadatas.append({**base_metadata, "chunk": chunk_index})
             chunk_index += 1
@@ -190,7 +216,7 @@ def ingest_document(file_path: str) -> int:
                 metadatas.clear()
 
     if chunk_index == 0:
-        raise ValueError("Document is empty and cannot be ingested.")
+        raise ValueError("Document appears to be empty and cannot be ingested.")
 
     if ids:
         collection.upsert(ids=ids, documents=documents, metadatas=metadatas)
@@ -198,7 +224,13 @@ def ingest_document(file_path: str) -> int:
     return chunk_index
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="RAG pipeline query runner.")
+    parser.add_argument("--query", required=True, help="Question to run through the RAG pipeline")
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
     args = parse_args()
-    _ensure_groq_key(prompt=True)
+    _ensure_groq_key()
     print(run_rag_pipeline(args.query))
