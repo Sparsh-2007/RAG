@@ -1,4 +1,3 @@
-import json
 import os
 from uuid import uuid4
 
@@ -24,31 +23,6 @@ def create_app() -> Flask:
     def index():
         return send_from_directory(app.static_folder, "index.html")
 
-    @app.post("/api/ingest")
-    def ingest():
-        payload = request.get_json(silent=True) or {}
-        path = payload.get("path")
-        if not path:
-            return jsonify({"error": "Missing required field: path"}), 400
-
-        doc_id_prefix = payload.get("doc_id_prefix")
-        metadata = payload.get("metadata")
-        if metadata is not None and not isinstance(metadata, dict):
-            return jsonify({"error": "metadata must be an object"}), 400
-
-        try:
-            chunk_count = ingest_document(
-                path,
-                doc_id_prefix=doc_id_prefix,
-                metadata=metadata,
-            )
-        except (FileNotFoundError, ValueError) as exc:
-            return jsonify({"error": str(exc)}), 400
-        except Exception as exc:
-            return jsonify({"error": "Ingestion failed", "details": str(exc)}), 500
-
-        return jsonify({"ingested_chunks": chunk_count, "path": path})
-
     @app.post("/api/upload")
     def upload():
         if "file" not in request.files:
@@ -67,23 +41,8 @@ def create_app() -> Flask:
         save_path = os.path.join(app.config["UPLOAD_FOLDER"], stored_name)
         file.save(save_path)
 
-        doc_id_prefix = request.form.get("doc_id_prefix") or None
-        metadata_raw = request.form.get("metadata")
-        metadata = None
-        if metadata_raw:
-            try:
-                metadata = json.loads(metadata_raw)
-            except json.JSONDecodeError:
-                return jsonify({"error": "metadata must be valid JSON"}), 400
-            if not isinstance(metadata, dict):
-                return jsonify({"error": "metadata must be a JSON object"}), 400
-
         try:
-            chunk_count = ingest_document(
-                save_path,
-                doc_id_prefix=doc_id_prefix,
-                metadata=metadata,
-            )
+            chunk_count = ingest_document(save_path)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         except Exception as exc:

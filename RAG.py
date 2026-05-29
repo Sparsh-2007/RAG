@@ -66,25 +66,6 @@ def normalize_path(path_or_url: str) -> str:
     return path
 
 
-def split_text(text: str, chunk_size: int = 800, overlap: int = 100) -> list[str]:
-    if chunk_size <= 0:
-        raise ValueError("chunk_size must be greater than 0")
-    if overlap < 0 or overlap >= chunk_size:
-        raise ValueError("overlap must be between 0 and chunk_size - 1")
-
-    chunks = []
-    start = 0
-    text_length = len(text)
-    while start < text_length:
-        end = min(start + chunk_size, text_length)
-        chunks.append(text[start:end])
-        start = end - overlap
-        if start < 0:
-            start = 0
-        if start >= text_length:
-            break
-    return chunks
-
 
 def _iter_chunks_from_stream(
     handle,
@@ -171,18 +152,11 @@ def run_rag_pipeline(user_question: str) -> str:
 
 def parse_args() -> argparse.Namespace:
 
-    parser = argparse.ArgumentParser(description="RAG pipeline with optional document ingestion.")
-    parser.add_argument("--ingest", help="Path or file:// URL to a .txt/.md document to ingest")
-    parser.add_argument("--doc-id-prefix", help="Prefix for generated document chunk IDs")
-    parser.add_argument("--domain", help="Optional domain metadata (e.g., AI/ML)")
-    parser.add_argument("--complexity", help="Optional complexity metadata (e.g., beginner)")
-    parser.add_argument("--query", help="Question to run through the RAG pipeline")
-    args = parser.parse_args()
-    if not args.ingest and not args.query:
-        parser.error("Provide --ingest and/or --query.")
-    return args
+    parser = argparse.ArgumentParser(description="RAG pipeline query runner.")
+    parser.add_argument("--query", required=True, help="Question to run through the RAG pipeline")
+    return parser.parse_args()
 
-def ingest_document(file_path: str, doc_id_prefix: str | None = None, metadata: dict | None = None) -> int:
+def ingest_document(file_path: str) -> int:
     collection = get_collection()
     normalized_path = normalize_path(file_path)
     if not os.path.isfile(normalized_path):
@@ -193,10 +167,8 @@ def ingest_document(file_path: str, doc_id_prefix: str | None = None, metadata: 
     if ext not in {".txt", ".md", ".markdown"}:
         raise ValueError("Only .txt, .md, and .markdown files are supported for ingestion.")
 
-    prefix = doc_id_prefix or os.path.splitext(os.path.basename(normalized_path))[0]
+    prefix = os.path.splitext(os.path.basename(normalized_path))[0]
     base_metadata = {"source": os.path.basename(normalized_path)}
-    if metadata:
-        base_metadata.update(metadata)
     ids = []
     documents = []
     metadatas = []
@@ -228,19 +200,5 @@ def ingest_document(file_path: str, doc_id_prefix: str | None = None, metadata: 
 
 if __name__ == "__main__":
     args = parse_args()
-    if args.ingest:
-        metadata = {}
-        if args.domain:
-            metadata["domain"] = args.domain
-        if args.complexity:
-            metadata["complexity"] = args.complexity
-        ingested_count = ingest_document(
-            args.ingest,
-            doc_id_prefix=args.doc_id_prefix,
-            metadata=metadata or None,
-        )
-        print(f"Ingested {ingested_count} chunks from {args.ingest}")
-
-    if args.query:
-        _ensure_groq_key(prompt=True)
-        print(run_rag_pipeline(args.query))
+    _ensure_groq_key(prompt=True)
+    print(run_rag_pipeline(args.query))
