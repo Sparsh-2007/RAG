@@ -3,27 +3,27 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>RAG Console</title>
+  <title>RAG Chat</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link
-    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Sora:wght@400;500;600;700&display=swap"
     rel="stylesheet"
   />
   <style>
     :root {
-      --bg-1: #f7f1e7;
-      --bg-2: #d8e6f2;
-      --ink: #1c1c1c;
-      --muted: #5b5f63;
-      --accent: #d36b2b;
-      --accent-2: #1f6f78;
-      --card: #ffffff;
-      --stroke: #e2d7c6;
-      --shadow: 0 24px 60px rgba(18, 34, 40, 0.12);
-      --mono: "IBM Plex Mono", monospace;
-      --sans: "Space Grotesk", sans-serif;
-      --radius: 18px;
+      --bg: #f7f4ef;
+      --bg-soft: #f1eee8;
+      --ink: #0f172a;
+      --muted: #5d6470;
+      --panel: #ffffff;
+      --accent: #0ea5a4;
+      --accent-deep: #0b4f4f;
+      --border: rgba(15, 23, 42, 0.12);
+      --shadow: 0 24px 48px rgba(15, 23, 42, 0.12);
+      --radius: 20px;
+      --mono: "JetBrains Mono", monospace;
+      --sans: "Sora", sans-serif;
     }
 
     * {
@@ -35,122 +35,147 @@
       font-family: var(--sans);
       color: var(--ink);
       background:
-        radial-gradient(1200px 600px at 10% -10%, #fde9d0 0%, transparent 60%),
-        radial-gradient(900px 600px at 120% 10%, #cde2f1 0%, transparent 55%),
-        linear-gradient(180deg, var(--bg-1), var(--bg-2));
+        radial-gradient(900px 600px at -10% -20%, #f8e7d2 0%, transparent 60%),
+        radial-gradient(700px 520px at 110% -10%, #d9efe9 0%, transparent 55%),
+        linear-gradient(180deg, var(--bg), var(--bg-soft));
       min-height: 100vh;
     }
 
-    .frame {
-      position: fixed;
-      inset: 24px;
-      border: 1px solid rgba(34, 50, 56, 0.12);
-      border-radius: 26px;
-      pointer-events: none;
-    }
-
-    .container {
-      max-width: 1100px;
-      margin: 0 auto;
-      padding: 48px 28px 64px;
-      position: relative;
-    }
-
-    .hero {
+    .app {
+      min-height: 100vh;
+      padding: 28px clamp(16px, 3vw, 40px) 36px;
       display: flex;
       flex-direction: column;
+      gap: 24px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 16px 20px;
+      background: rgba(255, 255, 255, 0.8);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(12px);
+      animation: lift 0.6s ease both;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
       gap: 12px;
-      margin-bottom: 32px;
-      animation: rise 0.6s ease both;
     }
 
-    .hero h1 {
+    .logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, #0ea5a4, #1d4e4d);
+      display: grid;
+      place-items: center;
+      color: white;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+    }
+
+    .brand h1 {
+      font-size: 18px;
       margin: 0;
-      font-size: clamp(28px, 3.4vw, 46px);
-      letter-spacing: -0.02em;
     }
 
-    .hero p {
+    .brand p {
       margin: 0;
       color: var(--muted);
-      max-width: 720px;
-      line-height: 1.6;
+      font-size: 12px;
     }
 
-    .pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      align-self: flex-start;
-      background: rgba(31, 111, 120, 0.1);
-      color: var(--accent-2);
+    .status-pill {
       padding: 8px 14px;
       border-radius: 999px;
+      font-size: 12px;
       font-weight: 600;
-      font-size: 13px;
       letter-spacing: 0.02em;
+      background: rgba(14, 165, 164, 0.12);
+      color: var(--accent-deep);
+      border: 1px solid rgba(14, 165, 164, 0.25);
     }
 
-    .grid {
+    .status-pill[data-tone="warn"] {
+      background: rgba(245, 158, 11, 0.12);
+      color: #9a5612;
+      border-color: rgba(245, 158, 11, 0.28);
+    }
+
+    .status-pill[data-tone="bad"] {
+      background: rgba(239, 68, 68, 0.12);
+      color: #9a1f1f;
+      border-color: rgba(239, 68, 68, 0.3);
+    }
+
+    .main {
       display: grid;
-      gap: 18px;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
+      gap: 24px;
+      flex: 1;
     }
 
-    .card {
-      background: var(--card);
+    .panel {
+      background: var(--panel);
       border-radius: var(--radius);
-      padding: 22px;
+      border: 1px solid var(--border);
       box-shadow: var(--shadow);
-      border: 1px solid var(--stroke);
+      padding: 22px;
       display: flex;
       flex-direction: column;
       gap: 14px;
-      animation: rise 0.6s ease both;
-      animation-delay: var(--delay, 0s);
+      animation: lift 0.7s ease both;
+      animation-delay: 0.05s;
     }
 
-    .card h2 {
+    .panel h2 {
       margin: 0;
       font-size: 18px;
     }
 
-    .field {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-
-    label {
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.08em;
+    .panel p {
+      margin: 0;
       color: var(--muted);
-      font-weight: 600;
-    }
-
-    input,
-    textarea {
-      border-radius: 12px;
-      border: 1px solid #d9cfc0;
-      padding: 12px 14px;
-      font-family: var(--mono);
+      line-height: 1.6;
       font-size: 13px;
+    }
+
+    .dropzone {
+      border: 2px dashed rgba(15, 23, 42, 0.2);
+      border-radius: 16px;
+      padding: 18px;
+      text-align: center;
+      background: #fdfaf5;
+      transition: border 0.2s ease, background 0.2s ease, color 0.2s ease;
+      cursor: pointer;
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .dropzone strong {
       color: var(--ink);
-      background: #fffdf9;
-      outline: none;
-      transition: border 0.2s ease, box-shadow 0.2s ease;
+      display: block;
+      margin-bottom: 6px;
     }
 
-    input:focus,
-    textarea:focus {
+    .dropzone.is-dragging {
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(211, 107, 43, 0.15);
+      background: #ecf7f6;
+      color: var(--accent-deep);
     }
 
-    textarea {
-      min-height: 96px;
-      resize: vertical;
+    .file-name {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
     }
 
     button {
@@ -162,77 +187,177 @@
       font-weight: 600;
       cursor: pointer;
       transition: transform 0.2s ease, box-shadow 0.2s ease;
-      box-shadow: 0 10px 20px rgba(211, 107, 43, 0.25);
+      box-shadow: 0 10px 20px rgba(14, 165, 164, 0.3);
     }
 
     button:hover {
       transform: translateY(-1px);
     }
 
-    .secondary {
-      background: #1f6f78;
-      box-shadow: 0 10px 20px rgba(31, 111, 120, 0.25);
-    }
-
-    .status {
-      margin-top: 18px;
-      padding: 14px 18px;
+    .upload-output {
+      min-height: 60px;
+      background: #0f172a;
+      color: #f8fafc;
       border-radius: 14px;
-      background: rgba(31, 111, 120, 0.08);
-      color: #1f6f78;
-      font-weight: 600;
-      font-size: 14px;
-      animation: rise 0.6s ease both;
-      animation-delay: 0.2s;
-    }
-
-    .output {
-      background: #0f1b24;
-      color: #f4f0e6;
-      border-radius: 14px;
-      padding: 14px 16px;
+      padding: 12px 14px;
       font-family: var(--mono);
-      font-size: 13px;
-      min-height: 110px;
+      font-size: 12px;
       white-space: pre-wrap;
-      border: 1px solid rgba(244, 240, 230, 0.12);
-    }
-
-    .dropzone {
-      border: 2px dashed #d9cfc0;
-      border-radius: 16px;
-      padding: 18px;
-      text-align: center;
-      background: #fff8ee;
-      color: var(--muted);
-      font-family: var(--mono);
-      transition: border 0.2s ease, background 0.2s ease, color 0.2s ease;
-      cursor: pointer;
-    }
-
-    .dropzone strong {
-      color: var(--ink);
-    }
-
-    .dropzone.is-dragging {
-      border-color: var(--accent);
-      background: #fff1dd;
-      color: var(--accent);
     }
 
     .helper {
+      font-size: 12px;
       color: var(--muted);
-      font-size: 13px;
       line-height: 1.6;
     }
 
-    .footer {
-      margin-top: 26px;
+    .chat {
+      background: var(--panel);
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      animation: lift 0.7s ease both;
+      animation-delay: 0.1s;
+    }
+
+    .chat-thread {
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      overflow-y: auto;
+      min-height: 320px;
+      flex: 1;
+    }
+
+    .chat-empty {
+      border: 1px dashed rgba(15, 23, 42, 0.18);
+      border-radius: 18px;
+      padding: 22px;
+      background: #faf8f4;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    .chat-empty strong {
+      color: var(--ink);
+      display: block;
+      margin-bottom: 6px;
+      font-size: 16px;
+    }
+
+    .message {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 16px 18px;
+      border-radius: 18px;
+      box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
+      animation: messageIn 0.4s ease both;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: #0f172a;
+      color: #f8fafc;
+      border-top-right-radius: 6px;
+    }
+
+    .message.assistant {
+      align-self: flex-start;
+      background: #f3f6f8;
+      color: var(--ink);
+      border-top-left-radius: 6px;
+    }
+
+    .message.assistant.error {
+      background: #fef2f2;
+      color: #991b1b;
+    }
+
+    .message-role {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      opacity: 0.7;
+      font-weight: 600;
+    }
+
+    .message-body {
+      font-size: 14px;
+      line-height: 1.6;
+      white-space: pre-wrap;
+    }
+
+    .typing {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    .typing span {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent-deep);
+      opacity: 0.4;
+      animation: bounce 0.9s infinite;
+    }
+
+    .typing span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .typing span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    .composer {
+      border-top: 1px solid rgba(15, 23, 42, 0.08);
+      padding: 18px 22px 22px;
+      background: linear-gradient(180deg, #ffffff, #f7f5f1);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 90px;
+      border-radius: 16px;
+      border: 1px solid rgba(15, 23, 42, 0.16);
+      padding: 14px 16px;
+      font-family: var(--mono);
+      font-size: 13px;
+      background: #fffdfb;
+      resize: vertical;
+      outline: none;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(14, 165, 164, 0.16);
+    }
+
+    .composer-actions {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .composer-note {
       color: var(--muted);
       font-size: 12px;
     }
 
-    @keyframes rise {
+    @keyframes lift {
       from {
         opacity: 0;
         transform: translateY(12px);
@@ -243,119 +368,107 @@
       }
     }
 
-    @media (max-width: 720px) {
-      .container {
-        padding: 36px 18px 48px;
+    @keyframes messageIn {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes bounce {
+      0%,
+      80%,
+      100% {
+        transform: scale(0.8);
+        opacity: 0.35;
+      }
+      40% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+
+    @media (max-width: 900px) {
+      .main {
+        grid-template-columns: 1fr;
+      }
+
+      .panel {
+        order: 2;
+      }
+
+      .chat {
+        order: 1;
       }
     }
   </style>
 </head>
 <body>
-  <div class="frame"></div>
-  <main class="container">
-    <div class="hero">
-      <span class="pill">RAG Local Console</span>
-      <h1>Ask your local knowledge base.</h1>
-      <p>
-        This UI talks to your Flask API. Ingest documents and ask questions against your Chroma store.
-      </p>
-    </div>
-
-    <section class="grid">
-      <div class="card" style="--delay: 0.05s;">
-        <h2>Ingest by path</h2>
-        <div class="field">
-          <label for="doc-path">Document path</label>
-          <input id="doc-path" type="text" placeholder="C:/path/to/notes.md" />
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo">RG</div>
+        <div>
+          <h1>RAG Chat</h1>
+          <p>Upload docs and chat with your local LLM.</p>
         </div>
-        <div class="field">
-          <label for="doc-prefix">Doc id prefix (optional)</label>
-          <input id="doc-prefix" type="text" placeholder="notes" />
-        </div>
-        <div class="field">
-          <label for="doc-meta">Metadata JSON (optional)</label>
-          <textarea id="doc-meta" placeholder='{"domain":"AI/ML","complexity":"beginner"}'></textarea>
-        </div>
-        <button id="ingest-btn" type="button">Ingest</button>
-        <div id="ingest-output" class="output">Waiting for ingestion...</div>
-        <p class="helper">
-          The server reads the file from its own filesystem. Use a path accessible to the Flask server.
-        </p>
       </div>
+      <div id="status" class="status-pill" data-tone="ok">Ready</div>
+    </header>
 
-      <div class="card" style="--delay: 0.12s;">
-        <h2>Upload (drag and drop)</h2>
+    <div class="main">
+      <aside class="panel">
+        <h2>Knowledge base</h2>
+        <p>Add .md or .txt files to the index. No history is stored in this UI.</p>
         <div id="dropzone" class="dropzone">
-          <div><strong>Drop a .txt or .md file here</strong></div>
-          <div id="file-name">No file selected</div>
+          <strong>Drop a .txt or .md file here</strong>
+          <span>or click to browse</span>
+          <div id="file-name" class="file-name">No file selected</div>
         </div>
         <input id="file-input" type="file" accept=".txt,.md,.markdown" hidden />
-        <div class="field">
-          <label for="upload-prefix">Doc id prefix (optional)</label>
-          <input id="upload-prefix" type="text" placeholder="notes" />
-        </div>
-        <div class="field">
-          <label for="upload-meta">Metadata JSON (optional)</label>
-          <textarea id="upload-meta" placeholder='{"domain":"AI/ML","complexity":"beginner"}'></textarea>
-        </div>
-        <button id="upload-btn" type="button">Upload and ingest</button>
-        <div id="upload-output" class="output">Waiting for upload...</div>
-        <p class="helper">
+        <button id="upload-btn" type="button">Add to knowledge</button>
+        <div id="upload-output" class="upload-output">Waiting for upload...</div>
+        <div class="helper">
           Files are stored in the server uploads folder (default: ./uploads). Max size: 10 MB.
-        </p>
-      </div>
-
-      <div class="card" style="--delay: 0.18s;">
-        <h2>Ask a question</h2>
-        <div class="field">
-          <label for="question">Question</label>
-          <textarea id="question" placeholder="What does backpropagation do?"></textarea>
         </div>
-        <button id="query-btn" type="button" class="secondary">Run query</button>
-        <div id="query-output" class="output">Waiting for query...</div>
-      </div>
-    </section>
+      </aside>
 
-    <div id="status" class="status">Status: Ready.</div>
-    <div class="footer">API base: http://localhost:5000</div>
-  </main>
+      <section class="chat">
+        <div id="chat-thread" class="chat-thread">
+          <div class="chat-empty">
+            <strong>Ask your docs anything.</strong>
+            The last response appears here. This interface does not keep chat history.
+          </div>
+        </div>
+        <div class="composer">
+          <textarea id="question" placeholder="Ask a question about your docs..."></textarea>
+          <div class="composer-actions">
+            <span class="composer-note">Press Enter to send, Shift+Enter for a new line.</span>
+            <button id="query-btn" type="button">Send</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
 
   <script>
     const statusEl = document.getElementById("status");
-    const ingestOutput = document.getElementById("ingest-output");
     const uploadOutput = document.getElementById("upload-output");
-    const queryOutput = document.getElementById("query-output");
     const dropzone = document.getElementById("dropzone");
     const fileInput = document.getElementById("file-input");
     const fileName = document.getElementById("file-name");
+    const chatThread = document.getElementById("chat-thread");
+    const questionInput = document.getElementById("question");
+    const queryBtn = document.getElementById("query-btn");
     let selectedFile = null;
 
     function setStatus(message, tone) {
-      const colors = {
-        ok: { bg: "rgba(31, 111, 120, 0.08)", fg: "#1f6f78" },
-        warn: { bg: "rgba(211, 107, 43, 0.12)", fg: "#a14f21" },
-        bad: { bg: "rgba(179, 49, 50, 0.12)", fg: "#9c2f31" },
-      };
-      const palette = colors[tone] || colors.ok;
-      statusEl.textContent = `Status: ${message}`;
-      statusEl.style.background = palette.bg;
-      statusEl.style.color = palette.fg;
-    }
-
-    function validateMetadata(raw) {
-      if (!raw) {
-        return null;
-      }
-      let parsed;
-      try {
-        parsed = JSON.parse(raw);
-      } catch (err) {
-        throw new Error("Metadata must be valid JSON.");
-      }
-      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        throw new Error("Metadata must be a JSON object.");
-      }
-      return parsed;
+      statusEl.textContent = message;
+      statusEl.dataset.tone = tone || "ok";
     }
 
     async function apiPost(path, payload) {
@@ -397,7 +510,68 @@
       fileName.textContent = `${selectedFile.name} (${sizeKb} KB)`;
     }
 
+    function createMessage(role, text, pending, isError) {
+      const message = document.createElement("div");
+      message.className = `message ${role}`;
+      if (isError) {
+        message.classList.add("error");
+      }
+
+      const roleEl = document.createElement("div");
+      roleEl.className = "message-role";
+      roleEl.textContent = role === "user" ? "You" : "Assistant";
+
+      const body = document.createElement("div");
+      body.className = "message-body";
+      if (pending) {
+        body.innerHTML = "<span class=\"typing\"><span></span><span></span><span></span></span>";
+      } else {
+        body.textContent = text || "";
+      }
+
+      message.append(roleEl, body);
+      return message;
+    }
+
+    function renderThread({ question, answer, pending, error }) {
+      chatThread.innerHTML = "";
+      const fragment = document.createDocumentFragment();
+      if (question) {
+        fragment.appendChild(createMessage("user", question, false, false));
+      }
+      if (pending) {
+        fragment.appendChild(createMessage("assistant", "", true, false));
+      } else if (answer !== undefined) {
+        fragment.appendChild(createMessage("assistant", answer, false, error));
+      }
+      chatThread.appendChild(fragment);
+      chatThread.scrollTop = chatThread.scrollHeight;
+    }
+
+    async function runQuery() {
+      const question = questionInput.value.trim();
+      if (!question) {
+        setStatus("Type a question first.", "bad");
+        return;
+      }
+
+      setStatus("Thinking...", "warn");
+      renderThread({ question, pending: true });
+
+      try {
+        const result = await apiPost("/api/query", { question });
+        const answer = result.answer || "No answer returned.";
+        renderThread({ question, answer, error: false });
+        setStatus("Response ready.", "ok");
+      } catch (err) {
+        const message = String(err.message || err);
+        renderThread({ question, answer: message, error: true });
+        setStatus("Query failed.", "bad");
+      }
+    }
+
     dropzone.addEventListener("click", () => fileInput.click());
+
     fileInput.addEventListener("change", (event) => {
       setSelectedFile(event.target.files[0]);
     });
@@ -420,45 +594,6 @@
       }
     });
 
-    document.getElementById("ingest-btn").addEventListener("click", async () => {
-      ingestOutput.textContent = "Working...";
-      setStatus("Ingesting document...", "warn");
-
-      const path = document.getElementById("doc-path").value.trim();
-      const prefix = document.getElementById("doc-prefix").value.trim();
-      const metadataRaw = document.getElementById("doc-meta").value.trim();
-
-      if (!path) {
-        setStatus("Provide a document path.", "bad");
-        ingestOutput.textContent = "Missing path.";
-        return;
-      }
-
-      let metadata = null;
-      if (metadataRaw) {
-        try {
-          metadata = validateMetadata(metadataRaw);
-        } catch (err) {
-          setStatus(err.message || "Metadata must be valid JSON.", "bad");
-          ingestOutput.textContent = "Invalid JSON in metadata.";
-          return;
-        }
-      }
-
-      try {
-        const result = await apiPost("/api/ingest", {
-          path,
-          doc_id_prefix: prefix || undefined,
-          metadata: metadata || undefined,
-        });
-        ingestOutput.textContent = JSON.stringify(result, null, 2);
-        setStatus("Ingest complete.", "ok");
-      } catch (err) {
-        ingestOutput.textContent = String(err.message || err);
-        setStatus("Ingest failed.", "bad");
-      }
-    });
-
     document.getElementById("upload-btn").addEventListener("click", async () => {
       uploadOutput.textContent = "Working...";
       setStatus("Uploading document...", "warn");
@@ -469,56 +604,27 @@
         return;
       }
 
-      const prefix = document.getElementById("upload-prefix").value.trim();
-      const metadataRaw = document.getElementById("upload-meta").value.trim();
-      let metadata = null;
-      if (metadataRaw) {
-        try {
-          metadata = validateMetadata(metadataRaw);
-        } catch (err) {
-          setStatus(err.message || "Metadata must be valid JSON.", "bad");
-          uploadOutput.textContent = "Invalid JSON in metadata.";
-          return;
-        }
-      }
-
       const formData = new FormData();
       formData.append("file", selectedFile);
-      if (prefix) {
-        formData.append("doc_id_prefix", prefix);
-      }
-      if (metadata) {
-        formData.append("metadata", JSON.stringify(metadata));
-      }
 
       try {
         const result = await apiUpload(formData);
         uploadOutput.textContent = JSON.stringify(result, null, 2);
         setStatus("Upload complete.", "ok");
+        setSelectedFile(null);
+        fileInput.value = "";
       } catch (err) {
         uploadOutput.textContent = String(err.message || err);
         setStatus("Upload failed.", "bad");
       }
     });
 
-    document.getElementById("query-btn").addEventListener("click", async () => {
-      queryOutput.textContent = "Working...";
-      setStatus("Running query...", "warn");
+    queryBtn.addEventListener("click", runQuery);
 
-      const question = document.getElementById("question").value.trim();
-      if (!question) {
-        setStatus("Provide a question.", "bad");
-        queryOutput.textContent = "Missing question.";
-        return;
-      }
-
-      try {
-        const result = await apiPost("/api/query", { question });
-        queryOutput.textContent = result.answer || "No answer returned.";
-        setStatus("Query complete.", "ok");
-      } catch (err) {
-        queryOutput.textContent = String(err.message || err);
-        setStatus("Query failed.", "bad");
+    questionInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        runQuery();
       }
     });
   </script>
