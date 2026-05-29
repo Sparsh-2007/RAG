@@ -26,15 +26,19 @@ def create_app() -> Flask:
     @app.post("/api/upload")
     def upload():
         if "file" not in request.files:
-            return jsonify({"error": "Missing file field"}), 400
+            return jsonify({"error": "Please attach a file to upload."}), 400
 
         file = request.files["file"]
         if not file or not file.filename:
-            return jsonify({"error": "No file selected"}), 400
+            return jsonify({"error": "Please choose a file before uploading."}), 400
 
         original_name = secure_filename(file.filename)
         if not original_name or not _is_allowed(original_name):
-            return jsonify({"error": "Only .txt, .md, and .markdown files are supported."}), 400
+            return jsonify(
+                {
+                    "error": "That file type isn't supported yet. Please upload a .txt, .md, or .markdown file."
+                }
+            ), 400
 
         base, ext = os.path.splitext(original_name)
         stored_name = f"{base}_{uuid4().hex}{ext}"
@@ -46,7 +50,12 @@ def create_app() -> Flask:
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         except Exception as exc:
-            return jsonify({"error": "Ingestion failed", "details": str(exc)}), 500
+            return jsonify(
+                {
+                    "error": "Sorry, something went wrong while ingesting your file.",
+                    "details": str(exc),
+                }
+            ), 500
 
         return jsonify(
             {
@@ -61,7 +70,7 @@ def create_app() -> Flask:
         payload = request.get_json(silent=True) or {}
         question = payload.get("question")
         if not question:
-            return jsonify({"error": "Missing required field: question"}), 400
+            return jsonify({"error": "Please add a question so I can help."}), 400
 
         try:
             answer = run_rag_pipeline(question)
