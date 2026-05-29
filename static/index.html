@@ -1,0 +1,526 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RAG Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap"
+    rel="stylesheet"
+  />
+  <style>
+    :root {
+      --bg-1: #f7f1e7;
+      --bg-2: #d8e6f2;
+      --ink: #1c1c1c;
+      --muted: #5b5f63;
+      --accent: #d36b2b;
+      --accent-2: #1f6f78;
+      --card: #ffffff;
+      --stroke: #e2d7c6;
+      --shadow: 0 24px 60px rgba(18, 34, 40, 0.12);
+      --mono: "IBM Plex Mono", monospace;
+      --sans: "Space Grotesk", sans-serif;
+      --radius: 18px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: var(--sans);
+      color: var(--ink);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #fde9d0 0%, transparent 60%),
+        radial-gradient(900px 600px at 120% 10%, #cde2f1 0%, transparent 55%),
+        linear-gradient(180deg, var(--bg-1), var(--bg-2));
+      min-height: 100vh;
+    }
+
+    .frame {
+      position: fixed;
+      inset: 24px;
+      border: 1px solid rgba(34, 50, 56, 0.12);
+      border-radius: 26px;
+      pointer-events: none;
+    }
+
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 48px 28px 64px;
+      position: relative;
+    }
+
+    .hero {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 32px;
+      animation: rise 0.6s ease both;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: clamp(28px, 3.4vw, 46px);
+      letter-spacing: -0.02em;
+    }
+
+    .hero p {
+      margin: 0;
+      color: var(--muted);
+      max-width: 720px;
+      line-height: 1.6;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      align-self: flex-start;
+      background: rgba(31, 111, 120, 0.1);
+      color: var(--accent-2);
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-weight: 600;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+    }
+
+    .grid {
+      display: grid;
+      gap: 18px;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 22px;
+      box-shadow: var(--shadow);
+      border: 1px solid var(--stroke);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      animation: rise 0.6s ease both;
+      animation-delay: var(--delay, 0s);
+    }
+
+    .card h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .field {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    input,
+    textarea {
+      border-radius: 12px;
+      border: 1px solid #d9cfc0;
+      padding: 12px 14px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--ink);
+      background: #fffdf9;
+      outline: none;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(211, 107, 43, 0.15);
+    }
+
+    textarea {
+      min-height: 96px;
+      resize: vertical;
+    }
+
+    button {
+      border: none;
+      background: var(--accent);
+      color: white;
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+      box-shadow: 0 10px 20px rgba(211, 107, 43, 0.25);
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    .secondary {
+      background: #1f6f78;
+      box-shadow: 0 10px 20px rgba(31, 111, 120, 0.25);
+    }
+
+    .status {
+      margin-top: 18px;
+      padding: 14px 18px;
+      border-radius: 14px;
+      background: rgba(31, 111, 120, 0.08);
+      color: #1f6f78;
+      font-weight: 600;
+      font-size: 14px;
+      animation: rise 0.6s ease both;
+      animation-delay: 0.2s;
+    }
+
+    .output {
+      background: #0f1b24;
+      color: #f4f0e6;
+      border-radius: 14px;
+      padding: 14px 16px;
+      font-family: var(--mono);
+      font-size: 13px;
+      min-height: 110px;
+      white-space: pre-wrap;
+      border: 1px solid rgba(244, 240, 230, 0.12);
+    }
+
+    .dropzone {
+      border: 2px dashed #d9cfc0;
+      border-radius: 16px;
+      padding: 18px;
+      text-align: center;
+      background: #fff8ee;
+      color: var(--muted);
+      font-family: var(--mono);
+      transition: border 0.2s ease, background 0.2s ease, color 0.2s ease;
+      cursor: pointer;
+    }
+
+    .dropzone strong {
+      color: var(--ink);
+    }
+
+    .dropzone.is-dragging {
+      border-color: var(--accent);
+      background: #fff1dd;
+      color: var(--accent);
+    }
+
+    .helper {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .footer {
+      margin-top: 26px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @media (max-width: 720px) {
+      .container {
+        padding: 36px 18px 48px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="frame"></div>
+  <main class="container">
+    <div class="hero">
+      <span class="pill">RAG Local Console</span>
+      <h1>Ask your local knowledge base.</h1>
+      <p>
+        This UI talks to your Flask API. Ingest documents and ask questions against your Chroma store.
+      </p>
+    </div>
+
+    <section class="grid">
+      <div class="card" style="--delay: 0.05s;">
+        <h2>Ingest by path</h2>
+        <div class="field">
+          <label for="doc-path">Document path</label>
+          <input id="doc-path" type="text" placeholder="C:/path/to/notes.md" />
+        </div>
+        <div class="field">
+          <label for="doc-prefix">Doc id prefix (optional)</label>
+          <input id="doc-prefix" type="text" placeholder="notes" />
+        </div>
+        <div class="field">
+          <label for="doc-meta">Metadata JSON (optional)</label>
+          <textarea id="doc-meta" placeholder='{"domain":"AI/ML","complexity":"beginner"}'></textarea>
+        </div>
+        <button id="ingest-btn" type="button">Ingest</button>
+        <div id="ingest-output" class="output">Waiting for ingestion...</div>
+        <p class="helper">
+          The server reads the file from its own filesystem. Use a path accessible to the Flask server.
+        </p>
+      </div>
+
+      <div class="card" style="--delay: 0.12s;">
+        <h2>Upload (drag and drop)</h2>
+        <div id="dropzone" class="dropzone">
+          <div><strong>Drop a .txt or .md file here</strong></div>
+          <div id="file-name">No file selected</div>
+        </div>
+        <input id="file-input" type="file" accept=".txt,.md,.markdown" hidden />
+        <div class="field">
+          <label for="upload-prefix">Doc id prefix (optional)</label>
+          <input id="upload-prefix" type="text" placeholder="notes" />
+        </div>
+        <div class="field">
+          <label for="upload-meta">Metadata JSON (optional)</label>
+          <textarea id="upload-meta" placeholder='{"domain":"AI/ML","complexity":"beginner"}'></textarea>
+        </div>
+        <button id="upload-btn" type="button">Upload and ingest</button>
+        <div id="upload-output" class="output">Waiting for upload...</div>
+        <p class="helper">
+          Files are stored in the server uploads folder (default: ./uploads). Max size: 10 MB.
+        </p>
+      </div>
+
+      <div class="card" style="--delay: 0.18s;">
+        <h2>Ask a question</h2>
+        <div class="field">
+          <label for="question">Question</label>
+          <textarea id="question" placeholder="What does backpropagation do?"></textarea>
+        </div>
+        <button id="query-btn" type="button" class="secondary">Run query</button>
+        <div id="query-output" class="output">Waiting for query...</div>
+      </div>
+    </section>
+
+    <div id="status" class="status">Status: Ready.</div>
+    <div class="footer">API base: http://localhost:5000</div>
+  </main>
+
+  <script>
+    const statusEl = document.getElementById("status");
+    const ingestOutput = document.getElementById("ingest-output");
+    const uploadOutput = document.getElementById("upload-output");
+    const queryOutput = document.getElementById("query-output");
+    const dropzone = document.getElementById("dropzone");
+    const fileInput = document.getElementById("file-input");
+    const fileName = document.getElementById("file-name");
+    let selectedFile = null;
+
+    function setStatus(message, tone) {
+      const colors = {
+        ok: { bg: "rgba(31, 111, 120, 0.08)", fg: "#1f6f78" },
+        warn: { bg: "rgba(211, 107, 43, 0.12)", fg: "#a14f21" },
+        bad: { bg: "rgba(179, 49, 50, 0.12)", fg: "#9c2f31" },
+      };
+      const palette = colors[tone] || colors.ok;
+      statusEl.textContent = `Status: ${message}`;
+      statusEl.style.background = palette.bg;
+      statusEl.style.color = palette.fg;
+    }
+
+    function validateMetadata(raw) {
+      if (!raw) {
+        return null;
+      }
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch (err) {
+        throw new Error("Metadata must be valid JSON.");
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new Error("Metadata must be a JSON object.");
+      }
+      return parsed;
+    }
+
+    async function apiPost(path, payload) {
+      const response = await fetch(path, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = data.error || data.details || `HTTP ${response.status}`;
+        throw new Error(message);
+      }
+      return data;
+    }
+
+    async function apiUpload(formData) {
+      const response = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const message = data.error || data.details || `HTTP ${response.status}`;
+        throw new Error(message);
+      }
+      return data;
+    }
+
+    function setSelectedFile(file) {
+      selectedFile = file || null;
+      if (!selectedFile) {
+        fileName.textContent = "No file selected";
+        return;
+      }
+      const sizeKb = Math.round(selectedFile.size / 1024);
+      fileName.textContent = `${selectedFile.name} (${sizeKb} KB)`;
+    }
+
+    dropzone.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", (event) => {
+      setSelectedFile(event.target.files[0]);
+    });
+
+    dropzone.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      dropzone.classList.add("is-dragging");
+    });
+
+    dropzone.addEventListener("dragleave", () => {
+      dropzone.classList.remove("is-dragging");
+    });
+
+    dropzone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      dropzone.classList.remove("is-dragging");
+      const file = event.dataTransfer.files[0];
+      if (file) {
+        setSelectedFile(file);
+      }
+    });
+
+    document.getElementById("ingest-btn").addEventListener("click", async () => {
+      ingestOutput.textContent = "Working...";
+      setStatus("Ingesting document...", "warn");
+
+      const path = document.getElementById("doc-path").value.trim();
+      const prefix = document.getElementById("doc-prefix").value.trim();
+      const metadataRaw = document.getElementById("doc-meta").value.trim();
+
+      if (!path) {
+        setStatus("Provide a document path.", "bad");
+        ingestOutput.textContent = "Missing path.";
+        return;
+      }
+
+      let metadata = null;
+      if (metadataRaw) {
+        try {
+          metadata = validateMetadata(metadataRaw);
+        } catch (err) {
+          setStatus(err.message || "Metadata must be valid JSON.", "bad");
+          ingestOutput.textContent = "Invalid JSON in metadata.";
+          return;
+        }
+      }
+
+      try {
+        const result = await apiPost("/api/ingest", {
+          path,
+          doc_id_prefix: prefix || undefined,
+          metadata: metadata || undefined,
+        });
+        ingestOutput.textContent = JSON.stringify(result, null, 2);
+        setStatus("Ingest complete.", "ok");
+      } catch (err) {
+        ingestOutput.textContent = String(err.message || err);
+        setStatus("Ingest failed.", "bad");
+      }
+    });
+
+    document.getElementById("upload-btn").addEventListener("click", async () => {
+      uploadOutput.textContent = "Working...";
+      setStatus("Uploading document...", "warn");
+
+      if (!selectedFile) {
+        setStatus("Drop a file first.", "bad");
+        uploadOutput.textContent = "No file selected.";
+        return;
+      }
+
+      const prefix = document.getElementById("upload-prefix").value.trim();
+      const metadataRaw = document.getElementById("upload-meta").value.trim();
+      let metadata = null;
+      if (metadataRaw) {
+        try {
+          metadata = validateMetadata(metadataRaw);
+        } catch (err) {
+          setStatus(err.message || "Metadata must be valid JSON.", "bad");
+          uploadOutput.textContent = "Invalid JSON in metadata.";
+          return;
+        }
+      }
+
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      if (prefix) {
+        formData.append("doc_id_prefix", prefix);
+      }
+      if (metadata) {
+        formData.append("metadata", JSON.stringify(metadata));
+      }
+
+      try {
+        const result = await apiUpload(formData);
+        uploadOutput.textContent = JSON.stringify(result, null, 2);
+        setStatus("Upload complete.", "ok");
+      } catch (err) {
+        uploadOutput.textContent = String(err.message || err);
+        setStatus("Upload failed.", "bad");
+      }
+    });
+
+    document.getElementById("query-btn").addEventListener("click", async () => {
+      queryOutput.textContent = "Working...";
+      setStatus("Running query...", "warn");
+
+      const question = document.getElementById("question").value.trim();
+      if (!question) {
+        setStatus("Provide a question.", "bad");
+        queryOutput.textContent = "Missing question.";
+        return;
+      }
+
+      try {
+        const result = await apiPost("/api/query", { question });
+        queryOutput.textContent = result.answer || "No answer returned.";
+        setStatus("Query complete.", "ok");
+      } catch (err) {
+        queryOutput.textContent = String(err.message || err);
+        setStatus("Query failed.", "bad");
+      }
+    });
+  </script>
+</body>
+</html>
