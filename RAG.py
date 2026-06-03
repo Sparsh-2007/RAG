@@ -1,7 +1,7 @@
 import argparse
 import getpass
 import hashlib
-import os
+import os , sys
 from urllib.parse import unquote, urlparse
 
 import chromadb
@@ -26,16 +26,32 @@ OLLAMA_MODEL = os.environ.get("OLLAMA_EMBED_MODEL", "mxbai-embed-large")
 
 
 def _ensure_groq_key() -> None:
-    """Resolve GROQ_API_KEY from env; prompt interactively only when running as a script."""
-    if "GROQ_API_KEY" not in os.environ:
-        # FIX 6: detect whether we are inside a web/server context
-        if os.environ.get("FLASK_ENV") or os.environ.get("SERVER_MODE"):
-            raise RuntimeError(
-                "GROQ_API_KEY is not set. Add it to your .env file or environment before starting the server."
-            )
-        # Interactive cli path
-        os.environ["GROQ_API_KEY"] = getpass.getpass("Enter your Groq API key: ")
+    """Resolve GROQ_API_KEY from env; block interactive prompts entirely in server mode."""
+    # 1. Check if the key already exists and isn't empty
+    if os.environ.get("GROQ_API_KEY", "").strip():
+        return
 
+    # 2. Hard check: Are we running via Flask/Werkzeug local server?
+    is_flask_server = (
+        os.environ.get("FLASK_RUN_FROM_CLI") == "true" or 
+        os.environ.get("WERKZEUG_RUN_MAIN") == "true" or
+        "flask" in sys.argv[0].lower()
+    )
+
+    # 3. If it's a web server, DO NOT try to read from the terminal. Fail immediately.
+    if is_flask_server or not (sys.stdin and sys.stdin.isatty()):
+        raise RuntimeError(
+            "\n[ERROR] GROQ_API_KEY is missing!\n"
+            "Because you are running a Flask server, you cannot type the key interactively.\n"
+            "Please create a '.env' file in your project root or export the variable:\n"
+        )
+
+    # 4. Pure local CLI script execution path (Safe to prompt here)
+    raw_key = getpass.getpass("Enter your Groq API key: ").strip()
+    if not raw_key:
+        raise ValueError("API key cannot be empty.")
+        
+    os.environ["GROQ_API_KEY"] = raw_key
 
 def get_llm() -> ChatGroq:
     global _llm
